@@ -24,6 +24,10 @@ it('do not skips with falsy closure condition')
     ->skip(function () { return false; })
     ->assertTrue(true);
 
-it('skips with condition and messsage')
+it('skips with condition and message')
     ->skip(true, 'skipped because foo')
     ->assertTrue(false);
+
+it('skips when skip after assertion')
+    ->assertTrue(true)
+    ->skip();

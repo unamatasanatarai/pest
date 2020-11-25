@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Pest\Concerns;
 
 use Closure;
+use Pest\Expectation;
 use Pest\Support\ExceptionTrace;
 use Pest\TestSuite;
 use PHPUnit\Util\Test;
+use Throwable;
 
 /**
  * To avoid inheritance conflicts, all the fields related
@@ -63,6 +65,11 @@ trait TestCase
         return $this->__description;
     }
 
+    public static function __getFileName(): string
+    {
+        return self::$__filename;
+    }
+
     /**
      * This method is called before the first test of this test class is run.
      */
@@ -85,6 +92,16 @@ trait TestCase
         call_user_func(Closure::bind($afterAll, null, self::class));
 
         parent::tearDownAfterClass();
+    }
+
+    /**
+     * Creates a new expectation.
+     *
+     * @param mixed $value
+     */
+    public function expect($value): Expectation
+    {
+        return new Expectation($value);
     }
 
     /**
@@ -129,16 +146,25 @@ trait TestCase
 
     /**
      * Runs the test.
+     *
+     * @return mixed
+     *
+     * @throws Throwable
      */
-    public function __test(): void
+    public function __test()
     {
-        $this->__callClosure($this->__test, func_get_args());
+        return $this->__callClosure($this->__test, func_get_args());
     }
 
-    private function __callClosure(Closure $closure, array $arguments): void
+    /**
+     * @return mixed
+     *
+     * @throws Throwable
+     */
+    private function __callClosure(Closure $closure, array $arguments)
     {
-        ExceptionTrace::ensure(function () use ($closure, $arguments) {
-            call_user_func_array(Closure::bind($closure, $this, get_class($this)), $arguments);
+        return ExceptionTrace::ensure(function () use ($closure, $arguments) {
+            return call_user_func_array(Closure::bind($closure, $this, get_class($this)), $arguments);
         });
     }
 

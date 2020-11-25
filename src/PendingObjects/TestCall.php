@@ -9,12 +9,25 @@ use Pest\Factories\TestCaseFactory;
 use Pest\Support\Backtrace;
 use Pest\Support\NullClosure;
 use Pest\TestSuite;
+use PHPUnit\Framework\ExecutionOrderDependency;
+use SebastianBergmann\Exporter\Exporter;
 
 /**
+ * @method \Pest\Expectation expect(mixed $value)
+ *
  * @internal
  */
 final class TestCall
 {
+    /**
+     * Holds the test suite.
+     *
+     * @readonly
+     *
+     * @var TestSuite
+     */
+    private $testSuite;
+
     /**
      * Holds the test case factory.
      *
@@ -25,13 +38,22 @@ final class TestCall
     private $testCaseFactory;
 
     /**
+     * If test call is descriptionLess.
+     *
+     * @readonly
+     *
+     * @var bool
+     */
+    private $descriptionLess = false;
+
+    /**
      * Creates a new instance of a pending test call.
      */
-    public function __construct(TestSuite $testSuite, string $filename, string $description, Closure $closure = null)
+    public function __construct(TestSuite $testSuite, string $filename, string $description = null, Closure $closure = null)
     {
         $this->testCaseFactory = new TestCaseFactory($filename, $description, $closure);
-
-        $testSuite->tests->set($this->testCaseFactory);
+        $this->testSuite       = $testSuite;
+        $this->descriptionLess = $description === null;
     }
 
     /**
@@ -40,13 +62,13 @@ final class TestCall
     public function throws(string $exceptionClass, string $exceptionMessage = null): TestCall
     {
         $this->testCaseFactory
-             ->proxies
-             ->add(Backtrace::file(), Backtrace::line(), 'expectException', [$exceptionClass]);
+            ->proxies
+            ->add(Backtrace::file(), Backtrace::line(), 'expectException', [$exceptionClass]);
 
         if (is_string($exceptionMessage)) {
             $this->testCaseFactory
-                 ->proxies
-                 ->add(Backtrace::file(), Backtrace::line(), 'expectExceptionMessage', [$exceptionMessage]);
+                ->proxies
+                ->add(Backtrace::file(), Backtrace::line(), 'expectExceptionMessage', [$exceptionMessage]);
         }
 
         return $this;
@@ -66,6 +88,28 @@ final class TestCall
     }
 
     /**
+     * Sets the test depends.
+     */
+    public function depends(string ...$tests): TestCall
+    {
+        $className = $this->testCaseFactory->getClassName();
+
+        $tests = array_map(function (string $test) use ($className): ExecutionOrderDependency {
+            if (strpos($test, '::') === false) {
+                $test = "{$className}::{$test}";
+            }
+
+            return new ExecutionOrderDependency($test, null, '');
+        }, $tests);
+
+        $this->testCaseFactory
+            ->factoryProxies
+            ->add(Backtrace::file(), Backtrace::line(), 'setDependencies', [$tests]);
+
+        return $this;
+    }
+
+    /**
      * Makes the test suite only this test case.
      */
     public function only(): TestCall
@@ -76,13 +120,13 @@ final class TestCall
     }
 
     /**
-     * Sets the test groups(s).
+     * Sets the test group(s).
      */
     public function group(string ...$groups): TestCall
     {
         $this->testCaseFactory
-             ->factoryProxies
-             ->add(Backtrace::file(), Backtrace::line(), 'addGroups', [$groups]);
+            ->factoryProxies
+            ->add(Backtrace::file(), Backtrace::line(), 'addGroups', [$groups]);
 
         return $this;
     }
@@ -110,8 +154,8 @@ final class TestCall
 
         if ($condition() !== false) {
             $this->testCaseFactory
-                 ->chains
-                 ->add(Backtrace::file(), Backtrace::line(), 'markTestSkipped', [$message]);
+                ->chains
+                ->add(Backtrace::file(), Backtrace::line(), 'markTestSkipped', [$message]);
         }
 
         return $this;
@@ -125,9 +169,26 @@ final class TestCall
     public function __call(string $name, array $arguments): self
     {
         $this->testCaseFactory
-             ->chains
-             ->add(Backtrace::file(), Backtrace::line(), $name, $arguments);
+            ->chains
+            ->add(Backtrace::file(), Backtrace::line(), $name, $arguments);
+
+        if ($this->descriptionLess) {
+            $exporter = new Exporter();
+            if ($this->testCaseFactory->description !== null) {
+                $this->testCaseFactory->description .= ' → ';
+            }
+            $this->testCaseFactory->description .= sprintf('%s %s', $name, $exporter->shortenedRecursiveExport($arguments));
+        }
 
         return $this;
+    }
+
+    /**
+     * Adds the current test case factory
+     * to the tests repository.
+     */
+    public function __destruct()
+    {
+        $this->testSuite->tests->set($this->testCaseFactory);
     }
 }

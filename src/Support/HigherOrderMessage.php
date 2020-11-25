@@ -76,13 +76,24 @@ final class HigherOrderMessage
             Reflection::setPropertyValue($throwable, 'file', $this->filename);
             Reflection::setPropertyValue($throwable, 'line', $this->line);
 
-            if ($throwable->getMessage() === sprintf(self::UNDEFINED_METHOD, $this->methodName)) {
-                /** @var \ReflectionClass $reflection */
-                $reflection = (new ReflectionClass($target))->getParentClass();
+            if ($throwable->getMessage() === self::getUndefinedMethodMessage($target, $this->methodName)) {
+                /** @var ReflectionClass $reflection */
+                $reflection = new ReflectionClass($target);
+                /* @phpstan-ignore-next-line */
+                $reflection = $reflection->getParentClass() ?: $reflection;
                 Reflection::setPropertyValue($throwable, 'message', sprintf('Call to undefined method %s::%s()', $reflection->getName(), $this->methodName));
             }
 
             throw $throwable;
         }
+    }
+
+    private static function getUndefinedMethodMessage(object $target, string $methodName): string
+    {
+        if (\PHP_MAJOR_VERSION >= 8) {
+            return sprintf(sprintf(self::UNDEFINED_METHOD, sprintf('%s::%s()', get_class($target), $methodName)));
+        }
+
+        return sprintf(self::UNDEFINED_METHOD, $methodName);
     }
 }

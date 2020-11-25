@@ -10,6 +10,7 @@ use Pest\Repositories\AfterEachRepository;
 use Pest\Repositories\BeforeAllRepository;
 use Pest\Repositories\BeforeEachRepository;
 use Pest\Repositories\TestRepository;
+use PHPUnit\Framework\TestCase;
 
 /**
  * @internal
@@ -19,7 +20,7 @@ final class TestSuite
     /**
      * Holds the current test case.
      *
-     * @var \PHPUnit\Framework\TestCase|null
+     * @var TestCase|null
      */
     public $test;
 
@@ -29,20 +30,6 @@ final class TestSuite
      * @var TestRepository
      */
     public $tests;
-
-    /**
-     * Whether should show the coverage or not.
-     *
-     * @var bool
-     */
-    public $coverage = false;
-
-    /**
-     * The minimum coverage.
-     *
-     * @var float
-     */
-    public $coverageMin = 0.0;
 
     /**
      * Holds the before each repository.
@@ -97,7 +84,7 @@ final class TestSuite
         $this->afterEach  = new AfterEachRepository();
         $this->afterAll   = new AfterAllRepository();
 
-        $this->rootPath = $rootPath;
+        $this->rootPath = (string) realpath($rootPath);
     }
 
     /**
@@ -106,7 +93,13 @@ final class TestSuite
     public static function getInstance(string $rootPath = null): TestSuite
     {
         if (is_string($rootPath)) {
-            return self::$instance ?? self::$instance = new TestSuite($rootPath);
+            self::$instance = new TestSuite($rootPath);
+
+            foreach (Plugin::$callables as $callable) {
+                $callable();
+            }
+
+            return self::$instance;
         }
 
         if (self::$instance === null) {

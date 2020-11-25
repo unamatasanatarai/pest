@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Pest\Repositories;
 
+use Pest\Exceptions\ShouldNotHappen;
 use Pest\Exceptions\TestAlreadyExist;
 use Pest\Exceptions\TestCaseAlreadyInUse;
 use Pest\Exceptions\TestCaseClassOrTraitNotFound;
 use Pest\Factories\TestCaseFactory;
 use Pest\Support\Str;
 use Pest\TestSuite;
+use PHPUnit\Framework\TestCase;
 
 /**
  * @internal
@@ -51,10 +53,9 @@ final class TestRepository
                 if ((!is_dir($path) && $filename === $path) || (is_dir($path) && $startsWith($filename, $path))) {
                     foreach ($classOrTraits as $class) {
                         if (class_exists($class)) {
-                            if ($testCase->class !== \PHPUnit\Framework\TestCase::class) {
+                            if ($testCase->class !== TestCase::class) {
                                 throw new TestCaseAlreadyInUse($testCase->class, $class, $filename);
                             }
-
                             $testCase->class = $class;
                         } elseif (trait_exists($class)) {
                             $testCase->traits[] = $class;
@@ -62,9 +63,9 @@ final class TestRepository
                     }
 
                     $testCase
-                         ->factoryProxies
-                         // Consider set the real line here.
-                         ->add($filename, 0, 'addGroups', [$groups]);
+                        ->factoryProxies
+                        // Consider set the real line here.
+                        ->add($filename, 0, 'addGroups', [$groups]);
                 }
             };
 
@@ -104,7 +105,14 @@ final class TestRepository
         }
 
         foreach ($paths as $path) {
-            $this->uses[$path] = [$classOrTraits, $groups];
+            if (array_key_exists($path, $this->uses)) {
+                $this->uses[$path] = [
+                    array_merge($this->uses[$path][0], $classOrTraits),
+                    array_merge($this->uses[$path][1], $groups),
+                ];
+            } else {
+                $this->uses[$path] = [$classOrTraits, $groups];
+            }
         }
     }
 
@@ -113,6 +121,10 @@ final class TestRepository
      */
     public function set(TestCaseFactory $test): void
     {
+        if ($test->description === null) {
+            throw ShouldNotHappen::fromMessage('Trying to create a test without description.');
+        }
+
         if (array_key_exists(sprintf('%s@%s', $test->filename, $test->description), $this->state)) {
             throw new TestAlreadyExist($test->filename, $test->description);
         }

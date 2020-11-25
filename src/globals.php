@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Pest\Datasets;
+use Pest\Expectation;
 use Pest\PendingObjects\AfterEachCall;
 use Pest\PendingObjects\BeforeEachCall;
 use Pest\PendingObjects\TestCall;
@@ -13,7 +14,7 @@ use Pest\TestSuite;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Runs the given closure after all tests in the current file.
+ * Runs the given closure before all tests in the current file.
  */
 function beforeAll(Closure $closure): void
 {
@@ -43,8 +44,8 @@ function dataset(string $name, $dataset): void
 }
 
 /**
- * The uses function adds the binds the
- * given arguments to test closures.
+ * The uses function binds the given
+ * arguments to test closures.
  */
 function uses(string ...$classAndTraits): UsesCall
 {
@@ -66,7 +67,7 @@ function test(string $description = null, Closure $closure = null)
         return new HigherOrderTapProxy(TestSuite::getInstance()->test);
     }
 
-    $filename = Backtrace::file();
+    $filename = Backtrace::testFile();
 
     return new TestCall(TestSuite::getInstance(), $filename, $description, $closure);
 }
@@ -80,9 +81,9 @@ function test(string $description = null, Closure $closure = null)
  */
 function it(string $description, Closure $closure = null): TestCall
 {
-    $filename = Backtrace::file();
+    $description = sprintf('it %s', $description);
 
-    return new TestCall(TestSuite::getInstance(), $filename, sprintf('it %s', $description), $closure);
+    return test($description, $closure);
 }
 
 /**
@@ -103,4 +104,16 @@ function afterEach(Closure $closure = null): AfterEachCall
 function afterAll(Closure $closure = null): void
 {
     TestSuite::getInstance()->afterAll->set($closure);
+}
+
+/**
+ * Creates a new expectation.
+ *
+ * @param mixed $value the Value
+ *
+ * @return Expectation
+ */
+function expect($value)
+{
+    return test()->expect($value);
 }
